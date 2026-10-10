@@ -11,6 +11,33 @@
 <meta name="apple-mobile-web-app-title" content="퇴근보고">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
+<script>
+  // 알림을 눌러 열렸을 때 보고 폼으로 바로 이동
+  (function () {
+    var KEY = new URL('__pending-link', location.href).href;
+    function isForm(u) { return /^https:\/\/(docs\.google\.com\/forms\/|forms\.gle\/)/.test(u || ''); }
+    function clearPending() {
+      try { if (window.caches) caches.open('taikin-push').then(function (c) { c.delete(KEY); }); } catch (e) {}
+    }
+    var go = new URLSearchParams(location.search).get('go');
+    if (isForm(go)) { clearPending(); location.replace(go); return; }
+    // 아이폰이 주소를 무시하고 첫 화면을 연 경우: 2분 안에 누른 알림의 폼 주소로 이동
+    function checkPending() {
+      if (!window.caches) return;
+      caches.open('taikin-push').then(function (c) {
+        return c.match(KEY).then(function (r) {
+          if (!r) return;
+          return r.json().then(function (p) {
+            c.delete(KEY);
+            if (p && isForm(p.link) && Date.now() - p.t < 120000) location.replace(p.link);
+          });
+        });
+      }).catch(function () {});
+    }
+    checkPending();
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) checkPending(); });
+  })();
+</script>
 <style>
   :root {
     --bg: #f4f7f5; --card: #ffffff; --ink: #17241f; --muted: #5f6f68; --line: #dde5e1;
