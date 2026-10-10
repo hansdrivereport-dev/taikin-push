@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>퇴근 보고 알림</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1b5e4e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="퇴근보고">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #f4f7f5; --card: #ffffff; --ink: #17241f; --muted: #5f6f68; --line: #dde5e1;
+    --brand: #1b5e4e; --brand-ink: #ffffff; --accent: #ffc400;
+    --ok-bg: #e5f4ee; --ok-ink: #145441; --err-bg: #fdecea; --err-ink: #9b2c22;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101614; --card: #18211e; --ink: #e8efec; --muted: #9db0a8; --line: #2a3632;
+      --brand: #3fa98c; --brand-ink: #0b1411;
+      --ok-bg: #16352b; --ok-ink: #9be0c7; --err-bg: #3a1c19; --err-ink: #ffb4aa;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Hiragino Sans", "Malgun Gothic", sans-serif;
+    font-size: 16px; line-height: 1.6;
+    padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+  }
+  main { max-width: 440px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 14px; margin: 8px 0 20px; }
+  header img { width: 52px; height: 52px; border-radius: 13px; flex: none; }
+  h1 { font-size: 21px; margin: 0; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+  .card h2 { font-size: 17px; margin: 0 0 10px; }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 15px; }
+  .card p:last-child { margin-bottom: 0; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 16px 0 6px; }
+  #setup > label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%; font: inherit; font-size: 17px; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; appearance: none;
+  }
+  input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; min-width: 0; }
+  button {
+    font: inherit; font-weight: 700; font-size: 16px; border: 0; border-radius: 12px; cursor: pointer;
+    padding: 13px 16px; background: var(--brand); color: var(--brand-ink); width: 100%;
+  }
+  .row button { width: auto; flex: none; padding: 12px 18px; }
+  button.secondary { background: transparent; color: var(--brand); border: 1px solid var(--line); font-weight: 600; }
+  button.link { background: none; color: var(--muted); font-weight: 500; font-size: 14px; padding: 8px; text-decoration: underline; }
+  button:disabled { opacity: .55; cursor: default; }
+  .stack > * + * { margin-top: 10px; }
+  #primary { margin-top: 20px; }
+  ol.steps { margin: 4px 0 0; padding: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding: 10px 0 10px 40px; border-top: 1px solid var(--line); font-size: 15px; }
+  ol.steps li:first-child { border-top: 0; }
+  ol.steps li::before {
+    content: counter(s); position: absolute; left: 0; top: 10px; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--brand); color: var(--brand-ink); font-weight: 700; font-size: 14px; display: grid; place-items: center;
+  }
+  .share-icon { display: inline-block; vertical-align: -3px; width: 18px; height: 18px; }
+  .who { font-size: 22px; font-weight: 800; margin: 2px 0 8px; color: var(--ink); }
+  .badge { display: inline-block; background: var(--ok-bg); color: var(--ok-ink); font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; margin-bottom: 8px; }
+  #msg { margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 15px; }
+  #msg.ok { background: var(--ok-bg); color: var(--ok-ink); }
+  #msg.err { background: var(--err-bg); color: var(--err-ink); }
+  [hidden] { display: none !important; }
+  .foot { text-align: center; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon-192.png" alt="">
+    <div>
+      <h1>퇴근 보고 알림</h1>
+      <p>퇴근 보고(입관증·PC)를 아직 안 했을 때<br>이 폰으로 알림을 보내 드립니다.</p>
+    </div>
+  </header>
+
+  <!-- 설정 누락 -->
+  <section id="config" class="card" hidden>
+    <h2>설정이 필요합니다</h2>
+    <p>관리자: config.js에 Firebase 설정, VAPID 키, Apps Script URL을 입력해 주세요.</p>
+  </section>
+
+  <!-- 카카오톡 등 앱 내 브라우저 -->
+  <section id="inapp" class="card" hidden>
+    <h2>브라우저에서 열어 주세요</h2>
+    <p>카카오톡 안에서 연 화면에서는 알림을 등록할 수 없습니다.</p>
+    <ol class="steps">
+      <li>오른쪽 위(또는 아래) <b>⋮ / 공유</b> 메뉴를 누릅니다.</li>
+      <li><b>다른 브라우저로 열기</b>를 누릅니다.<br>아이폰은 <b>Safari</b>, 안드로이드는 <b>Chrome</b>으로 열어 주세요.</li>
+    </ol>
+  </section>
+
+  <!-- 아이폰: 홈 화면에 추가 필요 -->
+  <section id="ios" class="card" hidden>
+    <h2>아이폰은 홈 화면에 추가가 필요합니다</h2>
+    <p>아이폰은 홈 화면 아이콘으로 열어야 알림을 받을 수 있습니다. (iOS 16.4 이상)</p>
+    <ol class="steps">
+      <li>Safari 아래쪽 <b>공유 버튼</b>
+        <svg class="share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+        을 누릅니다.</li>
+      <li>목록을 내려서 <b>홈 화면에 추가</b>를 누르고, 오른쪽 위 <b>추가</b>를 누릅니다.</li>
+      <li>홈 화면에 생긴 <b>퇴근보고</b> 아이콘으로 다시 열어 주세요.</li>
+    </ol>
+  </section>
+
+  <!-- 미지원 -->
+  <section id="unsupported" class="card" hidden>
+    <h2>이 기기에서는 알림을 받을 수 없습니다</h2>
+    <p>안드로이드는 Chrome 최신 버전, 아이폰은 iOS 16.4 이상에서 홈 화면 아이콘으로 열어 주세요.</p>
+    <p>계속 안 되면 관리자에게 알려 주세요. 기존처럼 단체방 공지로 안내받게 됩니다.</p>
+  </section>
+
+  <!-- 등록 -->
+  <section id="setup" class="card" hidden>
+    <label for="pin">등록 PIN</label>
+    <div class="row">
+      <input id="pin" inputmode="numeric" autocomplete="off" placeholder="단체방에 공지된 PIN">
+      <button id="pinBtn" type="button">확인</button>
+    </div>
+    <div id="nameStep" hidden>
+      <label for="name">이름</label>
+      <select id="name"><option value="">이름을 선택하세요</option></select>
+      <button id="primary" type="button">알림 받기</button>
+    </div>
+  </section>
+
+  <!-- 등록 완료 -->
+  <section id="done" class="card" hidden>
+    <span class="badge">알림 등록 완료</span>
+    <div class="who" id="doneName"></div>
+    <p>퇴근 보고를 하지 않은 날 저녁에 알림이 옵니다.<br>알림을 누르면 보고 폼이 바로 열립니다.</p>
+    <div class="stack">
+      <button id="testBtn" type="button">테스트 알림 보내기</button>
+      <button id="changeBtn" class="secondary" type="button">이름 다시 선택</button>
+    </div>
+    <div class="foot"><button id="offBtn" class="link" type="button">이 폰에서 알림 해제</button></div>
+  </section>
+
+  <div id="msg" role="status" hidden></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  const CFG = self.APP_CONFIG || {};
+  const $ = (id) => document.getElementById(id);
+  const SCREENS = ['config', 'inapp', 'ios', 'unsupported', 'setup', 'done'];
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+  };
+
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isInApp = /KAKAOTALK|Line\/|NAVER\(inapp|Instagram|FBAN|FBAV|DaumApps/i.test(ua);
+
+  function show(id) { SCREENS.forEach((s) => { $(s).hidden = s !== id; }); }
+  function msg(text, kind) {
+    const el = $('msg');
+    if (!text) { el.hidden = true; return; }
+    el.textContent = text; el.className = kind || ''; el.hidden = false;
+  }
+  function busy(btn, on, label) {
+    if (on) { btn.dataset.label = btn.textContent; btn.textContent = label || '처리 중…'; btn.disabled = true; }
+    else { btn.textContent = btn.dataset.label || btn.textContent; btn.disabled = false; }
+  }
+
+  // Apps Script 호출 (text/plain으로 보내 CORS 사전 요청을 피함)
+  async function api(action, extra) {
+    let res;
+    try {
+      res = await fetch(CFG.gasUrl, {
+        method: 'POST',
+        body: JSON.stringify(Object.assign({ action: action, pin: store.get('pin') || $('pin').value.trim() }, extra || {})),
+      });
+    } catch (e) { throw new Error('서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.'); }
+    let data;
+    try { data = await res.json(); } catch (e) { throw new Error('서버 응답이 올바르지 않습니다. 관리자에게 알려 주세요.'); }
+    if (!data.ok) throw new Error(data.error || '알 수 없는 오류');
+    return data;
+  }
+
+  // Firebase Messaging
+  let messaging = null, swReg = null;
+  async function initMessaging() {
+    if (messaging) return;
+    if (!firebase.apps.length) firebase.initializeApp(CFG.firebase);
+    swReg = await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    messaging = firebase.messaging();
+    // 페이지를 열어 둔 상태에서 받은 알림도 표시
+    messaging.onMessage((p) => {
+      const n = p.notification || {};
+      const link = (p.fcmOptions && p.fcmOptions.link) || '';
+      swReg.showNotification(n.title || '알림', { body: n.body || '', icon: 'icon-192.png', data: { link: link } });
+    });
+  }
+  async function getToken() {
+    await initMessaging();
+    const token = await messaging.getToken({ vapidKey: CFG.vapidKey, serviceWorkerRegistration: swReg });
+    if (!token) throw new Error('알림 토큰을 받지 못했습니다.');
+    return token;
+  }
+
+  // 화면 흐름
+  async function loadNames() {
+    const pin = $('pin').value.trim();
+    if (!pin) { msg('PIN을 입력해 주세요.', 'err'); return; }
+    const btn = $('pinBtn');
+    busy(btn, true, '확인 중');
+    msg('');
+    try {
+      store.set('pin', pin);
+      const data = await api('names', { pin: pin });
+      const sel = $('name');
+      sel.length = 1;
+      data.names.forEach((n) => { const o = document.createElement('option'); o.value = o.textContent = n; sel.appendChild(o); });
+      const saved = store.get('name');
+      if (saved && data.names.indexOf(saved) >= 0) sel.value = saved;
+      $('nameStep').hidden = false;
+    } catch (e) {
+      store.del('pin');
+      $('nameStep').hidden = true;
+      msg(e.message, 'err');
+    } finally { busy(btn, false); }
+  }
+
+  async function enable() {
+    const name = $('name').value;
+    if (!name) { msg('이름을 선택해 주세요.', 'err'); return; }
+    // 아이폰은 버튼을 누른 직후에 권한을 요청해야 하므로 가장 먼저 호출
+    let perm;
+    try { perm = await Notification.requestPermission(); } catch (e) { perm = Notification.permission; }
+    if (perm !== 'granted') {
+      msg(isIOS
+        ? '알림이 차단되어 있습니다. 설정 앱 → 알림 → 퇴근보고 에서 알림을 허용한 뒤 다시 눌러 주세요.'
+        : '알림이 차단되어 있습니다. 주소창 왼쪽 아이콘 → 권한(사이트 설정) → 알림을 허용한 뒤 다시 눌러 주세요.', 'err');
+      return;
+    }
+    const btn = $('primary');
+    busy(btn, true, '등록 중…');
+    msg('');
+    try {
+      const token = await getToken();
+      const res = await api('register', { name: name, token: token, ua: ua });
+      store.set('name', res.name); store.set('token', token);
+      showDone(res.name);
+      msg('등록되었습니다. 「테스트 알림 보내기」로 알림이 오는지 확인해 주세요.', 'ok');
+    } catch (e) {
+      msg('등록하지 못했습니다: ' + e.message, 'err');
+    } finally { busy(btn, false); }
+  }
+
+  function showDone(name) { $('doneName').textContent = name; show('done'); }
+
+  // 토큰이 바뀌었으면 조용히 다시 등록
+  async function refreshToken() {
+    try {
+      const token = await getToken();
+      if (token !== store.get('token')) {
+        await api('register', { name: store.get('name'), token: token, ua: ua });
+        store.set('token', token);
+      }
+    } catch (e) { /* 다음에 열 때 다시 시도 */ }
+  }
+
+  async function test() {
+    const btn = $('testBtn');
+    busy(btn, true, '보내는 중…');
+    msg('');
+    try {
+      await api('test', { token: store.get('token') });
+      msg('보냈습니다. 몇 초 안에 알림이 오면 정상입니다.', 'ok');
+    } catch (e) { msg(e.message, 'err'); }
+    finally { busy(btn, false); }
+  }
+
+  async function turnOff() {
+    if (!confirm('이 폰에서 퇴근 보고 알림을 해제할까요?')) return;
+    const btn = $('offBtn');
+    busy(btn, true, '해제 중…');
+    try {
+      await api('unregister', { token: store.get('token') });
+      try { await initMessaging(); await messaging.deleteToken(); } catch (e) {}
+      store.del('name'); store.del('token');
+      show('setup'); $('nameStep').hidden = true;
+      msg('알림을 해제했습니다.', 'ok');
+    } catch (e) { msg(e.message, 'err'); }
+    finally { busy(btn, false); }
+  }
+
+  async function main() {
+    if (!CFG.gasUrl || !CFG.vapidKey || !CFG.firebase || !CFG.firebase.apiKey) return show('config');
+    if (isInApp) return show('inapp');
+    if (isIOS && !isStandalone) return show('ios');
+    let supported = ('serviceWorker' in navigator) && ('Notification' in window) && ('PushManager' in window);
+    if (supported) { try { supported = await firebase.messaging.isSupported(); } catch (e) { supported = false; } }
+    if (!supported) return show('unsupported');
+
+    if (store.get('name') && store.get('token') && Notification.permission === 'granted') {
+      showDone(store.get('name'));
+      refreshToken();
+      return;
+    }
+    show('setup');
+    if (store.get('pin')) { $('pin').value = store.get('pin'); loadNames(); }
+  }
+
+  $('pinBtn').addEventListener('click', loadNames);
+  $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadNames(); });
+  $('primary').addEventListener('click', enable);
+  $('testBtn').addEventListener('click', test);
+  $('changeBtn').addEventListener('click', () => {
+    msg(''); show('setup');
+    $('pin').value = store.get('pin') || '';
+    if ($('pin').value) loadNames();
+  });
+  $('offBtn').addEventListener('click', turnOff);
+  main();
+})();
+</script>
+</body>
+</html>
